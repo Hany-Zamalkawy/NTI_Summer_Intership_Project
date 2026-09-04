@@ -1,0 +1,6 @@
+{
+  "name": "FarmFlow",
+  "description": "Organic farm marketplace, harvest box subscriptions, custom crates, fresh produce invoices, member account hub, and sign-in authentication branches.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
