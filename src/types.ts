@@ -51,6 +51,9 @@ export interface OrderConfirmation {
   cardLast4: string;
   farmsSupported: number;
   emissionsSavedKg: number;
+  paymentStatus?: 'paid' | 'pending' | 'unpaid';
+  paymentMethod?: string;
+  paidAt?: string;
 }
 
 export type ActiveScreen = 'marketplace' | 'subscriptions' | 'invoice' | 'orders' | 'account' | 'login';

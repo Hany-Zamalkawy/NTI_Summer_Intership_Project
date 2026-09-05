@@ -446,6 +446,7 @@ export default function App() {
               currentOrder={currentOrder}
               onViewInvoice={() => setCurrentScreen('invoice')}
               onNavigateToMarketplace={() => setCurrentScreen('marketplace')}
+              onUpdateOrder={(order) => setCurrentOrder(order)}
             />
           )}
 

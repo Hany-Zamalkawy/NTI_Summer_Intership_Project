@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { OrderConfirmation } from '../types';
 import { DeliveryMapTracker } from './DeliveryMapTracker';
+import { OrderPaymentModal } from './OrderPaymentModal';
 
 interface OrdersViewProps {
   currentOrder: OrderConfirmation;
   onViewInvoice: () => void;
   onNavigateToMarketplace: () => void;
+  onUpdateOrder?: (order: OrderConfirmation) => void;
 }
 
 export const OrdersView: React.FC<OrdersViewProps> = ({
   currentOrder,
   onViewInvoice,
   onNavigateToMarketplace,
+  onUpdateOrder,
 }) => {
   // Push Notification Subscription State
   const [isPushEnabled, setIsPushEnabled] = useState<boolean>(true);
@@ -29,6 +32,81 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     status: string;
     time: string;
   } | null>(null);
+
+  // Order Payment States
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
+  const [orderToPay, setOrderToPay] = useState<OrderConfirmation>(currentOrder);
+  const [paymentStatus, setPaymentStatus] = useState<'paid' | 'pending'>(
+    currentOrder.paymentStatus === 'pending' ? 'pending' : 'paid'
+  );
+  const [paymentToast, setPaymentToast] = useState<{
+    title: string;
+    desc: string;
+  } | null>(null);
+
+  const handleOpenPayment = (orderTarget: OrderConfirmation) => {
+    setOrderToPay(orderTarget);
+    setIsPaymentModalOpen(true);
+  };
+
+  const handlePaymentSuccess = (details: {
+    orderNumber: string;
+    totalPaid: number;
+    cardLast4: string;
+    paymentMethod: string;
+  }) => {
+    setPaymentStatus('paid');
+    const updatedOrder: OrderConfirmation = {
+      ...currentOrder,
+      orderNumber: details.orderNumber,
+      totalPaid: details.totalPaid,
+      cardLast4: details.cardLast4,
+      paymentStatus: 'paid',
+      paymentMethod: details.paymentMethod,
+      paidAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'Payment Confirmed - Awaiting Dawn Harvest',
+    };
+    if (onUpdateOrder) {
+      onUpdateOrder(updatedOrder);
+    }
+    setPaymentToast({
+      title: `Payment Confirmed: $${details.totalPaid.toFixed(2)}`,
+      desc: `Paid via ${details.paymentMethod} (ending in ${details.cardLast4}). Your sunrise harvest crate is officially reserved!`,
+    });
+    setTimeout(() => setPaymentToast(null), 5000);
+  };
+
+  const handleReorderAndPay = (pastOrder: {
+    id: string;
+    date: string;
+    total: number;
+    itemsCount: number;
+    farm: string;
+  }) => {
+    const reorderItem = {
+      name: `${pastOrder.farm} Curated Farm Selection`,
+      origin: pastOrder.farm,
+      unitWeight: `${pastOrder.itemsCount} seasonal bunches`,
+      quantity: 1,
+      unitPrice: pastOrder.total,
+      total: pastOrder.total,
+    };
+    const newReorder: OrderConfirmation = {
+      ...currentOrder,
+      orderNumber: `${pastOrder.id}-R`,
+      date: 'Today, ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      deliveryWindow: 'Tomorrow, 8:00 AM – 10:00 AM',
+      status: 'Awaiting Payment for Tomorrow Harvest',
+      paymentStatus: 'pending',
+      items: [reorderItem],
+      subtotal: pastOrder.total,
+      deliveryFee: 0.0,
+      ecoPackagingOffset: 0.5,
+      farmerTip: Number((pastOrder.total * 0.1).toFixed(2)),
+      totalPaid: Number((pastOrder.total + 0.5 + Number((pastOrder.total * 0.1).toFixed(2))).toFixed(2)),
+    };
+    handleOpenPayment(newReorder);
+  };
 
   const primaryFarmOrigin =
     currentOrder.items.length > 0 ? currentOrder.items[0].origin : 'Mariout Greenhouses';
@@ -67,6 +145,39 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
 
   return (
     <div id="orders-screen" className="max-w-4xl mx-auto space-y-8 pb-24 relative">
+      {/* Payment Confirmation Toast */}
+      {paymentToast && (
+        <div
+          id="payment-success-toast"
+          className="fixed top-24 right-4 md:right-10 z-50 max-w-md bg-[#012d1d] text-white p-4 rounded-2xl shadow-2xl border border-[#92f7c3]/50 animate-bounce-short flex items-start gap-3 backdrop-blur-md"
+        >
+          <div className="w-10 h-10 rounded-full bg-[#92f7c3] text-[#002114] flex items-center justify-center shrink-0 shadow-md">
+            <span className="material-symbols-outlined text-xl">verified</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#92f7c3]">
+                Payment Confirmed
+              </span>
+              <span className="text-[10px] text-white/70">Just now</span>
+            </div>
+            <h4 className="font-serif-display text-base font-bold text-white mt-0.5">
+              {paymentToast.title}
+            </h4>
+            <p className="text-xs text-[#f3f4f5] opacity-90 mt-1 leading-relaxed">
+              {paymentToast.desc}
+            </p>
+          </div>
+          <button
+            onClick={() => setPaymentToast(null)}
+            className="text-white/60 hover:text-white cursor-pointer"
+            aria-label="Close notification"
+          >
+            <span className="material-symbols-outlined text-sm">close</span>
+          </button>
+        </div>
+      )}
+
       {/* Interactive In-App Push Notification Simulation Banner */}
       {simulatedAlert && simulatedAlert.show && (
         <div
@@ -325,13 +436,35 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={onViewInvoice}
-            className="px-6 py-2.5 rounded-full bg-[#012d1d] text-white text-xs font-bold hover:bg-[#1b4332] transition-colors cursor-pointer shadow-xs flex items-center gap-2"
-          >
-            <span className="material-symbols-outlined text-sm">receipt_long</span>
-            <span>View Full Invoice</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {paymentStatus === 'pending' ? (
+              <button
+                id="pay-active-order-header-btn"
+                onClick={() => handleOpenPayment(currentOrder)}
+                className="px-5 py-2.5 rounded-full bg-[#006c48] hover:bg-[#012d1d] text-white text-xs font-bold transition-all cursor-pointer shadow-md flex items-center gap-1.5 animate-pulse"
+              >
+                <span className="material-symbols-outlined text-sm">payments</span>
+                <span>Pay Now (${currentOrder.totalPaid.toFixed(2)})</span>
+              </button>
+            ) : (
+              <button
+                id="pay-next-harvest-btn"
+                onClick={() => handleOpenPayment(currentOrder)}
+                className="px-4 py-2.5 rounded-full bg-[#92f7c3]/30 hover:bg-[#92f7c3]/50 text-[#006c48] border border-[#006c48]/30 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-sm">credit_card</span>
+                <span>Pay / Re-bill Order</span>
+              </button>
+            )}
+
+            <button
+              onClick={onViewInvoice}
+              className="px-5 py-2.5 rounded-full bg-[#012d1d] text-white text-xs font-bold hover:bg-[#1b4332] transition-colors cursor-pointer shadow-xs flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-sm">receipt_long</span>
+              <span>View Invoice</span>
+            </button>
+          </div>
         </div>
 
         {/* Items Mini List */}
@@ -357,14 +490,48 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
           </div>
         </div>
 
-        {/* Footer info */}
-        <div className="flex flex-col sm:flex-row justify-between items-center bg-[#92f7c3]/20 rounded-2xl p-4 border border-[#006c48]/20 gap-3">
-          <div className="flex items-center gap-2 text-xs text-[#002114]">
-            <span className="material-symbols-outlined text-base text-[#006c48]">local_shipping</span>
-            <span>Status: <strong>{currentOrder.status}</strong></span>
+        {/* Footer info & Payment Bar */}
+        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center bg-[#f8f9fa] rounded-2xl p-4 border border-[#c1c8c2]/30 gap-4">
+          <div className="flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-1.5 text-[#002114]">
+              <span className="material-symbols-outlined text-base text-[#006c48]">local_shipping</span>
+              <span>Status: <strong>{currentOrder.status}</strong></span>
+            </div>
+            <span>•</span>
+            <span className="text-[#414844]">{currentOrder.deliveryWindow}</span>
           </div>
-          <div className="text-xs font-bold text-[#012d1d]">
-            Total: ${currentOrder.totalPaid.toFixed(2)} (Paid)
+
+          <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#c1c8c2]/20">
+            {paymentStatus === 'paid' ? (
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1.5 rounded-full bg-[#92f7c3]/40 text-[#006c48] border border-[#006c48]/20 text-xs font-bold flex items-center gap-1">
+                  <span className="material-symbols-outlined text-xs">check_circle</span>
+                  <span>Paid: ${currentOrder.totalPaid.toFixed(2)} ({currentOrder.cardLast4 ? 'Visa ••' + currentOrder.cardLast4 : 'Visa ••4242'})</span>
+                </span>
+                <button
+                  onClick={() => setPaymentStatus('pending')}
+                  className="text-[11px] text-[#717874] hover:text-[#012d1d] hover:underline cursor-pointer"
+                  title="Simulate pending payment state"
+                >
+                  (simulate unpaid)
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold flex items-center gap-1 animate-pulse">
+                  <span className="material-symbols-outlined text-xs">pending</span>
+                  <span>Payment Due: ${currentOrder.totalPaid.toFixed(2)}</span>
+                </span>
+                <button
+                  id="pay-order-footer-btn"
+                  onClick={() => handleOpenPayment(currentOrder)}
+                  className="px-4 py-1.5 bg-[#006c48] hover:bg-[#012d1d] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-xs">payments</span>
+                  <span>Pay Now</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -403,13 +570,21 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                   Delivered on {pastOrder.date} • {pastOrder.itemsCount} items from {pastOrder.farm}
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <span className="font-bold text-sm text-[#012d1d]">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="font-bold text-sm text-[#012d1d] mr-1">
                   ${pastOrder.total.toFixed(2)}
                 </span>
                 <button
+                  id={`reorder-pay-${pastOrder.id}`}
+                  onClick={() => handleReorderAndPay(pastOrder)}
+                  className="px-3.5 py-1.5 rounded-full bg-[#006c48] text-white hover:bg-[#012d1d] text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-xs">payments</span>
+                  <span>Reorder &amp; Pay</span>
+                </button>
+                <button
                   onClick={onViewInvoice}
-                  className="px-4 py-1.5 rounded-full border border-[#c1c8c2]/40 text-xs font-bold text-[#414844] hover:bg-white cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-full border border-[#c1c8c2]/40 text-xs font-bold text-[#414844] hover:bg-white cursor-pointer"
                 >
                   View Invoice
                 </button>
@@ -427,6 +602,14 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
           Shop More Produce
         </button>
       </div>
+
+      {/* 5. Secure Order Payment Modal */}
+      <OrderPaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        order={orderToPay}
+        onPaymentSuccess={handlePaymentSuccess}
+      />
     </div>
   );
 };
