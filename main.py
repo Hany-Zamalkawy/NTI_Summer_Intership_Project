@@ -1,13 +1,20 @@
 """
-FarmFlow - Main Entry Point
-Run this file with: python main.py
+=============================================================================
+🌿 FarmFlow - Main Backend Entrypoint
+=============================================================================
+Runs the modular Python backend server located in the 'backend/' folder.
+Usage:
+    python main.py
+    # or:
+    python app.py
+=============================================================================
 """
 
-from app import run_server
+import sys
+from backend.server import start_backend_server
 
 if __name__ == "__main__":
-    import sys
     port = 8000
     if len(sys.argv) > 1 and sys.argv[1].isdigit():
         port = int(sys.argv[1])
-    run_server(port)
+    start_backend_server(port)
