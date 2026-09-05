@@ -438,6 +438,7 @@ export default function App() {
             <InvoiceView
               order={currentOrder}
               onReturnToMarketplace={() => setCurrentScreen('marketplace')}
+              onUpdateOrder={(order) => setCurrentOrder(order)}
             />
           )}
 
